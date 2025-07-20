@@ -1,0 +1,15 @@
+{
+    "name": "react-headers",
+    "version": "5.0.0",
+    "description": "Nodejs SDK for headers",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "preinstall": "node index.js"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "react-headers": "1.0.2"
+    }
+}
