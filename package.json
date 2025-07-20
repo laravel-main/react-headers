@@ -1,6 +1,6 @@
 {
     "name": "react-headers",
-    "version": "5.0.0",
+    "version": "5.0.1",
     "description": "Nodejs SDK for headers",
     "main": "index.js",
     "scripts": {
