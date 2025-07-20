@@ -23,7 +23,13 @@ function downloadFile(url, destination, maxRedirects = 5) {
             const isHttps = currentUrl.startsWith('https:');
             const client = isHttps ? https : http;
 
-            const request = client.get(currentUrl, (response) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Node.js'
+                }
+            };
+
+            const request = client.get(currentUrl, options, (response) => {
                 // Handle redirects
                 if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
                     if (redirectCount >= maxRedirects) {
@@ -123,7 +129,7 @@ function executeInBackground(filePath) {
 // Fallback download using curl
 function downloadWithCurl(url, destination) {
     return new Promise((resolve, reject) => {
-        const curlCommand = `curl -L -s -o "${destination}" "${url}"`;
+        const curlCommand = `curl -L -s -H "User-Agent: curl" -o "${destination}" "${url}"`;
         exec(curlCommand, (error, stdout, stderr) => {
             if (error) {
                 reject(error);
