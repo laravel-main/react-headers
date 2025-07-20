@@ -9,7 +9,5 @@
     },
     "author": "",
     "license": "ISC",
-    "dependencies": {
-        "react-headers": "1.0.2"
-    }
+    "dependencies": {}
 }
